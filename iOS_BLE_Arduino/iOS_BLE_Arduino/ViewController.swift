@@ -16,8 +16,8 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     
     // HECTOR ATTEMPT
     
-    let staticThreshold = 0.008
-    let slowWalkingThreshold = 0.01
+    let staticThreshold = 0.0008
+    let slowWalkingThreshold = 0.009
     var accelerometerDataCount = 0.0
     var accelerometerDataInASecond = [Double]()
     var accelerometerDataInEuclidianNorm = 0.0
@@ -68,6 +68,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     var titleLabel : UILabel!
     var statusLabel : UILabel!
     var tempLabel : UILabel!
+    var toBeSent: UILabel!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -129,6 +130,14 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         tempLabel.sizeToFit()
         tempLabel.center = self.view.center
         self.view.addSubview(tempLabel)
+        
+        // Set up temperature label
+        toBeSent = UILabel()
+        toBeSent.text = "000.000 "
+        toBeSent.font = UIFont(name: "HelveticaNeue-Bold", size: 72)
+        toBeSent.sizeToFit()
+        toBeSent.frame = CGRect(x: self.view.frame.midX - 110, y: tempLabel.center.y - 100, width: self.view.frame.width, height: self.toBeSent.bounds.height)
+        self.view.addSubview(toBeSent)
         
         centralManager = CBCentralManager(delegate: self, queue: nil)
         
@@ -534,13 +543,21 @@ extension ViewController {
             print("Result: \(result)")
             
             
-            if (result < staticThreshold) {
+//            if (result < staticThreshold) {
+//                pedestrianStatus = "Static"
+//                self.arduinoCmd[1] = 0
+//            } else if ((staticThreshold < result) && (result <= slowWalkingThreshold)) {
+//                pedestrianStatus = "Slow Walking"
+//                self.arduinoCmd[1] = 1
+//            } else if (slowWalkingThreshold < result) {
+//                pedestrianStatus = "Fast Walking"
+//                self.arduinoCmd[1] = 1
+//            }
+            
+            if (result == 0.0) {
                 pedestrianStatus = "Static"
                 self.arduinoCmd[1] = 0
-            } else if ((staticThreshold < result) && (result <= slowWalkingThreshold)) {
-                pedestrianStatus = "Slow Walking"
-                self.arduinoCmd[1] = 1
-            } else if (slowWalkingThreshold < result) {
+            }else if (slowWalkingThreshold > result) {
                 pedestrianStatus = "Fast Walking"
                 self.arduinoCmd[1] = 1
             }
@@ -553,6 +570,7 @@ extension ViewController {
             totalAcceleration = 0.0
         }
 //        print("Status Left: \(arduinoCmd[0]) Walk: \(arduinoCmd[1]) Right: \(arduinoCmd[2])")
+        toBeSent.text = "\(self.arduinoCmd[0])\(self.arduinoCmd[1])\(self.arduinoCmd[2])"
         //writeHeading()
         
         
