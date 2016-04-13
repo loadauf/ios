@@ -14,6 +14,26 @@ import GameKit
 
 class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDelegate, CLLocationManagerDelegate {
     
+    // HECTOR ATTEMPT
+    
+    let staticThreshold = 0.008
+    let slowWalkingThreshold = 0.01
+    var accelerometerDataCount = 0.0
+    var accelerometerDataInASecond = [Double]()
+    var accelerometerDataInEuclidianNorm = 0.0
+    var totalAcceleration = 0.0
+    var pedestrianStatus: String!
+    let roundingPrecision = 3
+    var headingChecker = 0.0
+    var arduinoCmd = [0,0,0]
+    var headingTimer: NSTimer?
+    var secondsCounter = 0
+    // END OF HECTOR ATTEMPT
+    
+    
+    
+    
+    
     // Instance variables
     let motionManager = CMMotionManager()
     var centralManager : CBCentralManager!
@@ -24,7 +44,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     var lastPosition: Double = 255.0
     var timerTXDelay: NSTimer?
     var allowTX = true
-    let samplingRate = 1/4.0  // 4HZ
+    let samplingRate = 0.05
     @IBOutlet weak var slider: UISlider!
     var allowSending = false
     
@@ -74,7 +94,13 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
             
             self.outputGyroData(gyroData!)
         }
+         
+         
  */
+        
+        
+        headingTimer = NSTimer.scheduledTimerWithTimeInterval(0.15, target: self, selector: #selector(ViewController.didHeadingUpdate), userInfo: nil, repeats: true)
+        
         
         startHeadingEvents()
         locationManager.delegate = self
@@ -117,7 +143,11 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
                 print("\(error)")
                 return
             }
-            self.outputAccelerationData(accelerometerData!)
+            
+//            self.outputAccelerationData(accelerometerData!)
+            
+            self.estimatePedestrianStatus(accelerometerData!.acceleration)
+            
         })
         
     }
@@ -338,7 +368,8 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         }
     }
     
-    func writeHeading(heading: CLLocationDirection) {
+//    func writeHeading(heading: CLLocationDirection) {
+    func writeHeading() {
         /******** (1) CODE TO BE ADDED *******/
         
         // See if characteristic has been discovered before writing to it
@@ -350,9 +381,18 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
             //            let data = NSData(bytes: &positionValue, length: sizeof(UInt8))
 //            let data = NSMutableData()
             //            let data = NSData(bytes: &value, length: sizeof(Float))
-            let value: Float = Float(heading as Double)
+            
+            
+//            let value: Float = Float(heading as Double)
+            
+            let value = "\(self.arduinoCmd[0])\(self.arduinoCmd[1])\(self.arduinoCmd[2])"
+            
             tempLabel.text = String(value)
-            print("is connecte sending: \(value)")
+            
+            
+//            print("is connecte sending: \(value)")
+            
+            
 //            data.appendBytes(&value, length: sizeof(Float))
             
             //            for i in 0 ..< array.count {
@@ -369,6 +409,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
 
     func timerTXDelayElapsed() {
         self.allowTX = true
+        
         self.stopTimerTXDelay()
         
         // Send current slider position
@@ -386,6 +427,8 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     
     // MARK: - Location Delegate
     
+    var counter = 0
+    var updateHeading = false
     func locationManager(manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         
         if newHeading.headingAccuracy < 0 {
@@ -393,12 +436,45 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         }
         
         //let theHeading = ((newHeading.trueHeading > 0) ? newHeading.trueHeading : newHeading.magneticHeading)
-                print("Heading did update \(newHeading.magneticHeading)")
+//        print("Heading did update \(newHeading.magneticHeading)")
+
+        
+        if (self.currentTrueHeading > (newHeading.trueHeading + 5)) {
+//            print("left turn")
+            self.arduinoCmd[0] = 1
+            self.arduinoCmd[2] = 0
+            self.currentTrueHeading = newHeading.trueHeading
+//            if updateHeading == true {
+//                self.headingChecker = newHeading.trueHeading
+//                updateHeading = false
+//            }
+            
+        } else if self.currentTrueHeading < (newHeading.trueHeading + 5) {
+//            print("right turn")
+            self.arduinoCmd[2] = 1
+            self.arduinoCmd[0] = 0
+            self.currentTrueHeading = newHeading.trueHeading
+//            if updateHeading == true {
+//                self.headingChecker = newHeading.trueHeading
+//                updateHeading = false
+//            }
+        } else {
+//            print("going straight")
+            self.arduinoCmd[0] = 0
+            self.arduinoCmd[2] = 0
+        }
+        
+//        let theHeading = ((newHeading.trueHeading > 0) ? newHeading.trueHeading : newHeading.magneticHeading)
+        //        print("Heading did update \(theHeading)")
+//        self.currentTrueHeading = newHeading.trueHeading
         
         currentHeading = newHeading.magneticHeading
+        
+        /*
         if allowSending {
             writeHeading(newHeading.magneticHeading)
         }
+        */
     }
     
     func locationManager(manager: CLLocationManager, didUpdateToLocation newLocation: CLLocation, fromLocation oldLocation: CLLocation) {
@@ -409,7 +485,126 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         print(manager.location!.speed)
         print(locations.first?.speed)
     }
+    
+
+}
 
 
+// LoadAUF - Hector Attemp
+extension ViewController {
+
+
+    
+    
+    func estimatePedestrianStatus(acceleration: CMAcceleration) {
+        // Obtain the Euclidian Norm of the accelerometer data
+        accelerometerDataInEuclidianNorm = sqrt((acceleration.x.roundTo(roundingPrecision) * acceleration.x.roundTo(roundingPrecision)) + (acceleration.y.roundTo(roundingPrecision) * acceleration.y.roundTo(roundingPrecision)) + (acceleration.z.roundTo(roundingPrecision) * acceleration.z.roundTo(roundingPrecision)))
+        
+        // Significant figure setting
+        accelerometerDataInEuclidianNorm = accelerometerDataInEuclidianNorm.roundTo(roundingPrecision)
+        
+        // record 10 values
+        // meaning values in a second
+        // accUpdateInterval(0.1s) * 10 = 1s
+        while accelerometerDataCount < 1 {
+            accelerometerDataCount += 0.05
+            
+            accelerometerDataInASecond.append(accelerometerDataInEuclidianNorm)
+            totalAcceleration += accelerometerDataInEuclidianNorm
+            
+            break   // required since we want to obtain data every acc cycle
+        }
+        
+        // when acc values recorded
+        // interpret them
+        if accelerometerDataCount >= 1 {
+            accelerometerDataCount = 0  // reset for the next round
+            
+            // Calculating the variance of the Euclidian Norm of the accelerometer data
+            let accelerationMean = (totalAcceleration / 20.0).roundTo(roundingPrecision)
+            var total: Double = 0.0
+            
+            for data in accelerometerDataInASecond {
+                total += ((data-accelerationMean) * (data-accelerationMean)).roundTo(roundingPrecision)
+            }
+            
+            total = total.roundTo(roundingPrecision)
+            
+            let result = (total / 20).roundTo(roundingPrecision)
+            print("Result: \(result)")
+            
+            
+            if (result < staticThreshold) {
+                pedestrianStatus = "Static"
+                self.arduinoCmd[1] = 0
+            } else if ((staticThreshold < result) && (result <= slowWalkingThreshold)) {
+                pedestrianStatus = "Slow Walking"
+                self.arduinoCmd[1] = 1
+            } else if (slowWalkingThreshold < result) {
+                pedestrianStatus = "Fast Walking"
+                self.arduinoCmd[1] = 1
+            }
+            
+//            print("Pedestrian Status: \(pedestrianStatus)\n---\n\n")
+            
+            
+            // reset for the next round
+            accelerometerDataInASecond = []
+            totalAcceleration = 0.0
+        }
+//        print("Status Left: \(arduinoCmd[0]) Walk: \(arduinoCmd[1]) Right: \(arduinoCmd[2])")
+        //writeHeading()
+        
+        
+
+    }
+    
+    func didHeadingUpdate() {
+        
+//        if headingChecker == currentTrueHeading {
+//            counter += 1
+//            if counter == 5 {
+//                self.arduinoCmd[0] = 0
+//                self.arduinoCmd[2] = 0
+//            }
+//        }
+        if let _ = currentTrueHeading {
+//            print("\n\n current heading exists \(headingChecker) -- \(currentTrueHeading)  -  \(counter)\n\n")
+            if headingChecker != currentTrueHeading {
+//                print("\n\nchanging heading\n\n")
+                headingChecker = currentTrueHeading!
+            } else {
+                counter += 1
+                if counter == 5 {
+                    self.arduinoCmd[0] = 0
+                    self.arduinoCmd[2] = 0
+                    counter = 0
+                }
+            }
+        }
+        
+        
+        updateHeading = true
+        secondsCounter += 1
+        if secondsCounter == 10 {
+            self.secondsCounter = 0
+            print("\n\n\n Second has passed  \n\n\n")
+        }
+        writeHeading()
+//        if currentTrueHeading == headingChecker {
+//            //print("\n\n\n reset direction \n\n\n")
+//            self.arduinoCmd[0] = 0
+//            self.arduinoCmd[2] = 0
+//        }
+    }
+
+    
+}
+
+extension Double {
+        func roundTo(precision: Int) -> Double {
+            let divisor = pow(10.0, Double(precision))
+            return round(self * divisor) / divisor
+        }
 }
 

@@ -10,11 +10,11 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "iOS_BLE_Arduino/ViewController.swift"
-            timestampString = "481678550.275981"
+            timestampString = "482201854.866222"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "332"
-            endingLineNumber = "332"
+            startingLineNumber = "362"
+            endingLineNumber = "362"
             landmarkName = "writePosition(_:)"
             landmarkType = "5">
          </BreakpointContent>
